@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:jaxrs="http://cxf.apache.org/jaxrs-client"
+       xmlns:cxf="http://camel.apache.org/schema/cxf"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd        http://camel.apache.org/schema/spring       http://camel.apache.org/schema/spring/camel-spring.xsd http://cxf.apache.org/jaxrs-client http://cxf.apache.org/schemas/jaxrs-client.xsd http://camel.apache.org/schema/cxf http://camel.apache.org/schema/cxf/camel-cxf.xsd">
+    <import resource="application-context.xml"/>
+
+
+    <!-- Defined the client endpoint to create the cxf-rs consumer -->
+    <cxf:rsClient id="rsClient" address="http://ms-pagoya-enrolar-rubicon-stg.obe8.bancoppel-dev.openshiftapps.com"
+                  serviceClass="org.mycompany.interfaces.RestInterface"
+                  loggingFeatureEnabled="true"
+                  loggingSizeLimit="100000">
+        <cxf:providers>
+            <bean class="org.codehaus.jackson.jaxrs.JacksonJsonProvider" />
+        </cxf:providers>
+    </cxf:rsClient>
+
+
+    <camelContext id="camel" xmlns="http://camel.apache.org/schema/spring">
+        <onException>
+            <exception>java.lang.Exception</exception>
+            <handled>
+                <constant>true</constant>
+            </handled>
+            <setHeader headerName="CamelHttpResponseCode">
+                <simple resultType="Integer">500</simple>
+            </setHeader>
+            <log loggingLevel="ERROR" message="[EXCEPTION]:${exchangeProperty[exception]}"/>
+            <process ref="errorHandler" />
+            <setHeader headerName="Exchange.HTTP_RESPONSE_CODE">
+                <simple resultType="Integer">${in.header.CamelHttpResponseCode}</simple>
+            </setHeader>
+        </onException>
+
+        <!-- REST PUBLICATION -->
+        <restConfiguration apiContextPath="/openapi.json" component="servlet"/>
+        <rest enableCORS="true"
+            id="rest-ba19e089-4eec-41d4-943b-27f146d6990e" path="/demo-cxf">
+            <get id="get-a13bc954-903b-4168-bbf2-1befd43bceff"
+                produces="application/json" uri="openapi.json">
+                <description>Gets the openapi document for this service</description>
+                <route>
+                    <setHeader headerName="Exchange.CONTENT_TYPE">
+                        <constant>application/vnd.oai.openapi+json</constant>
+                    </setHeader>
+                    <setBody>
+                        <simple>resource:classpath:openapi.json</simple>
+                    </setBody>
+                </route>
+            </get>
+        </rest>
+        <rest enableCORS="true" id="rest-aabe01e2-0c62-4d67-9498-36a69f712a76">
+            <post id="post-e047252b-2a35-4144-b2fe-faa73de689fe" uri="/demo-cxf/consuta">
+                <description>Envío de petición</description>
+                <to uri="direct:consumirservice"/>
+            </post>
+        </rest>
+        <!-- /REST PUBLICATION -->
+        <!-- CONSUMER -->
+        <route id="_route1">
+            <from id="_from1" uri="direct:consumirservice"/>
+            <removeHeaders pattern="*" />
+            <convertBodyTo type="String" />
+            <setHeader headerName="operationName">
+                <simple resultType="String">enrolarValidar</simple>
+            </setHeader>
+            <setHeader headerName="CamelCxfRsUsingHttpAPI">
+                <simple resultType="String">false</simple>
+            </setHeader>
+            <to uri="cxfrs:bean:rsClient?bridgeErrorHandler=true"  pattern="InOut"/>
+        </route>
+        <!-- /CONSUMER -->
+    </camelContext>
+</beans>
