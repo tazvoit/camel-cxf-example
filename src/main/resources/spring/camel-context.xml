@@ -14,6 +14,9 @@
         <cxf:providers>
             <bean class="org.codehaus.jackson.jaxrs.JacksonJsonProvider" />
         </cxf:providers>
+        <cxf:inInterceptors>
+            <ref bean="soapMessageInterceptor"/>
+        </cxf:inInterceptors>
     </cxf:rsClient>
 
 
@@ -23,9 +26,7 @@
             <handled>
                 <constant>true</constant>
             </handled>
-            <setHeader headerName="CamelHttpResponseCode">
-                <simple resultType="Integer">500</simple>
-            </setHeader>
+            <log message="HEADERS .. ${headers}" />
             <log loggingLevel="ERROR" message="[EXCEPTION]:${exchangeProperty[exception]}"/>
             <process ref="errorHandler" />
             <setHeader headerName="Exchange.HTTP_RESPONSE_CODE">
@@ -60,15 +61,28 @@
         <!-- CONSUMER -->
         <route id="_route1">
             <from id="_from1" uri="direct:consumirservice"/>
-            <removeHeaders pattern="*" />
             <convertBodyTo type="String" />
-            <setHeader headerName="operationName">
+            <removeHeaders pattern="*" />
+            <!--setHeader headerName="operationName">
                 <simple resultType="String">enrolarValidar</simple>
+            </setHeader-->
+            <!--setHeader headerName="CamelCxfRsUsingHttpAPI">
+                <simple resultType="String">true</simple>
+            </setHeader-->
+            <setHeader headerName="Exchange.HTTP_METHOD">
+                <constant>POST</constant>
             </setHeader>
-            <setHeader headerName="CamelCxfRsUsingHttpAPI">
-                <simple resultType="String">false</simple>
+            <setHeader headerName="Exchange.CONTENT_TYPE">
+                <constant>application/json</constant>
             </setHeader>
-            <to uri="cxfrs:bean:rsClient?bridgeErrorHandler=true"  pattern="InOut"/>
+            <setHeader headerName="Exchange.HTTP_PATH">
+                <constant>enrolar/validar</constant>
+            </setHeader>
+            <!--to uri="cxfrs:bean:rsClient?dataFormat=PAYLOAD&amp;loggingFeatureEnabled=true"/-->
+            <to uri="http4://ms-pagoya-enrolar-rubicon-stg.obe8.bancoppel-dev.openshiftapps.com?throwExceptionOnFailure=false" />
+            <setBody>
+                <simple>${body}</simple>
+            </setBody>
         </route>
         <!-- /CONSUMER -->
     </camelContext>
